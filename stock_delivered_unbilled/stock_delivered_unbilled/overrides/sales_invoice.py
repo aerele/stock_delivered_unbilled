@@ -43,46 +43,48 @@ class CustomSalesInvoice(SalesInvoice):
 		if not self.update_stock:
 			for item in self.get("items"):
 				if item.delivery_note and item.dn_detail:
-					dn_expense_account = frappe.db.get_value("Delivery Note Item", item.dn_detail, "expense_account")
-					if dn_expense_account and dn_expense_account != item.expense_account:
-						item_g = frappe.db.get_value("Stock Ledger Entry",
-							{
-								"voucher_no": item.delivery_note,
-								"voucher_detail_no": item.dn_detail,
-								"item_code": item.item_code
-							},
-							["stock_value_difference", "actual_qty"]
-						,as_dict = True)
-						valuation_rate = item_g.stock_value_difference / item_g.actual_qty
-						valuation_amount = valuation_rate * item.stock_qty
-						account_currency = get_account_currency(dn_expense_account)
-						gl_entries.append(
-							self.get_gl_dict(
+					is_stock_item = frappe.db.get_value("Item", item.item_code, "is_stock_item")
+					if not is_stock_item:
+						dn_expense_account = frappe.db.get_value("Delivery Note Item", item.dn_detail, "expense_account")
+						if dn_expense_account and dn_expense_account != item.expense_account:
+							item_g = frappe.db.get_value("Stock Ledger Entry",
 								{
-									"account": dn_expense_account,
-									"against": item.expense_account,
-									"credit": flt(valuation_amount),
-									"credit_in_account_currency": (
-										flt(valuation_amount)
-									),
-									"cost_center": item.cost_center,
+									"voucher_no": item.delivery_note,
+									"voucher_detail_no": item.dn_detail,
+									"item_code": item.item_code
 								},
-								account_currency,
-								item=item,
+								["stock_value_difference", "actual_qty"]
+							,as_dict = True)
+							valuation_rate = item_g.stock_value_difference / item_g.actual_qty
+							valuation_amount = valuation_rate * item.stock_qty
+							account_currency = get_account_currency(dn_expense_account)
+							gl_entries.append(
+								self.get_gl_dict(
+									{
+										"account": dn_expense_account,
+										"against": item.expense_account,
+										"credit": flt(valuation_amount),
+										"credit_in_account_currency": (
+											flt(valuation_amount)
+										),
+										"cost_center": item.cost_center,
+									},
+									account_currency,
+									item=item,
+								)
 							)
-						)
-						gl_entries.append(
-							self.get_gl_dict(
-								{
-									"account": item.expense_account,
-									"against": dn_expense_account,
-									"debit": flt(valuation_amount),
-									"debit_in_account_currency": (
-										flt(valuation_amount)
-									),
-									"cost_center": item.cost_center,
-								},
-								account_currency,
-								item=item,
+							gl_entries.append(
+								self.get_gl_dict(
+									{
+										"account": item.expense_account,
+										"against": dn_expense_account,
+										"debit": flt(valuation_amount),
+										"debit_in_account_currency": (
+											flt(valuation_amount)
+										),
+										"cost_center": item.cost_center,
+									},
+									account_currency,
+									item=item,
+								)
 							)
-						)
